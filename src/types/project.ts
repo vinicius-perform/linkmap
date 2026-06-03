@@ -19,4 +19,8 @@ export interface Project {
   hotspots: Hotspot[];
   createdAt: number;
   updatedAt: number;
+  githubUrl?: string;
+  githubRepo?: string;
+  githubUpdatedAt?: number;
+  vercelUrl?: string;
 }

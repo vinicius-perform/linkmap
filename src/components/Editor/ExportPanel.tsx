@@ -5,7 +5,7 @@ import { generateReactCode, generateHtmlCode } from "@/lib/export";
 import GitHubDeployModal from "./GitHubDeployModal";
 
 export default function ExportPanel() {
-  const { project, selectedHotspotId } = useEditorStore();
+  const { project, selectedHotspotId, updateHotspot } = useEditorStore();
   const [copied, setCopied] = useState<"react" | "html" | null>(null);
   const [isGithubModalOpen, setIsGithubModalOpen] = useState(false);
 
@@ -78,20 +78,72 @@ export default function ExportPanel() {
           {selectedHotspot ? (
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
-                <span className="block text-xs text-gray-500 mb-1">X (Esquerda)</span>
-                <span className="font-mono text-white">{selectedHotspot.x.toFixed(2)}%</span>
+                <span className="block text-xs text-gray-500 mb-1">X (Esquerda) (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={(100 - selectedHotspot.width).toFixed(2)}
+                  value={selectedHotspot.x}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val)) {
+                      updateHotspot(selectedHotspot.id, { x: Math.max(0, Math.min(100 - selectedHotspot.width, val)) });
+                    }
+                  }}
+                  className="w-full bg-[#161618] border border-white/10 rounded px-1.5 py-0.5 text-center text-white font-mono text-sm focus:outline-none focus:border-[#D4AF37]"
+                />
               </div>
               <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
-                <span className="block text-xs text-gray-500 mb-1">Y (Topo)</span>
-                <span className="font-mono text-white">{selectedHotspot.y.toFixed(2)}%</span>
+                <span className="block text-xs text-gray-500 mb-1">Y (Topo) (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={(100 - selectedHotspot.height).toFixed(2)}
+                  value={selectedHotspot.y}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val)) {
+                      updateHotspot(selectedHotspot.id, { y: Math.max(0, Math.min(100 - selectedHotspot.height, val)) });
+                    }
+                  }}
+                  className="w-full bg-[#161618] border border-white/10 rounded px-1.5 py-0.5 text-center text-white font-mono text-sm focus:outline-none focus:border-[#D4AF37]"
+                />
               </div>
               <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
-                <span className="block text-xs text-gray-500 mb-1">Largura</span>
-                <span className="font-mono text-white">{selectedHotspot.width.toFixed(2)}%</span>
+                <span className="block text-xs text-gray-500 mb-1">Largura (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.1"
+                  max={(100 - selectedHotspot.x).toFixed(2)}
+                  value={selectedHotspot.width}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val)) {
+                      updateHotspot(selectedHotspot.id, { width: Math.max(0.1, Math.min(100 - selectedHotspot.x, val)) });
+                    }
+                  }}
+                  className="w-full bg-[#161618] border border-white/10 rounded px-1.5 py-0.5 text-center text-white font-mono text-sm focus:outline-none focus:border-[#D4AF37]"
+                />
               </div>
               <div className="bg-black/40 border border-white/5 rounded p-2 text-center">
-                <span className="block text-xs text-gray-500 mb-1">Altura</span>
-                <span className="font-mono text-white">{selectedHotspot.height.toFixed(2)}%</span>
+                <span className="block text-xs text-gray-500 mb-1">Altura (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.1"
+                  max={(100 - selectedHotspot.y).toFixed(2)}
+                  value={selectedHotspot.height}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val)) {
+                      updateHotspot(selectedHotspot.id, { height: Math.max(0.1, Math.min(100 - selectedHotspot.y, val)) });
+                    }
+                  }}
+                  className="w-full bg-[#161618] border border-white/10 rounded px-1.5 py-0.5 text-center text-white font-mono text-sm focus:outline-none focus:border-[#D4AF37]"
+                />
               </div>
             </div>
           ) : (

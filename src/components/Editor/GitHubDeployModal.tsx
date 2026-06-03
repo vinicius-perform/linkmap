@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useGithubStore } from "@/store/githubStore";
 import { useEditorStore } from "@/store/editorStore";
 import { pushStaticHtmlToGithub } from "@/lib/github";
 import { X, ExternalLink, Loader2, KeyRound } from "lucide-react";
+import { Octokit } from "@octokit/rest";
 
 function GithubIcon(props: any) {
   return (
@@ -18,15 +20,17 @@ interface Props {
 
 export default function GitHubDeployModal({ onClose }: Props) {
   const { token, setToken } = useGithubStore();
-  const { project } = useEditorStore();
+  const { project, updateProjectInfo } = useEditorStore();
+  const router = useRouter();
   
   const [inputToken, setInputToken] = useState(token || "");
   const [repoName, setRepoName] = useState(project ? `linkbio-${project.slug}` : "meu-linkbio");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [vercelUrl, setVercelUrl] = useState(project?.vercelUrl || "");
   
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploySuccessUrl, setDeploySuccessUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode | null>(null);
 
   const handleSaveToken = () => {
     setToken(inputToken.trim());
@@ -41,11 +45,87 @@ export default function GitHubDeployModal({ onClose }: Props) {
     try {
       const url = await pushStaticHtmlToGithub(token, project, repoName, isPrivate);
       setDeploySuccessUrl(url);
+      updateProjectInfo({
+        githubUrl: url,
+        githubRepo: repoName,
+        githubUpdatedAt: Date.now(),
+        vercelUrl: vercelUrl.trim() || undefined,
+      });
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Erro desconhecido ao tentar fazer o deploy.");
       if (err.status === 401) {
         setError("Token inválido ou expirado. Verifique e tente novamente.");
+      } else if (err.status === 403 || (err.message && err.message.toLowerCase().includes("resource not accessible"))) {
+        setError(
+          <div className="space-y-2 text-left">
+            <p className="font-semibold text-red-400">Erro de permissão no Token (403):</p>
+            <p className="text-xs text-red-300">
+              O seu Personal Access Token não tem permissão para gravar neste repositório.
+            </p>
+            <div className="text-xs text-gray-400 space-y-1.5 bg-black/40 p-2.5 rounded border border-white/5 mt-1">
+              <p className="font-medium text-gray-300">Como corrigir no GitHub:</p>
+              <p>• <strong>Fine-grained PAT:</strong> Em <em>Repository Permissions</em>, altere <strong>Contents</strong> para <strong>Read and write</strong>. Em <em>Repository access</em>, selecione <strong>All repositories</strong>.</p>
+              <p>• <strong>Classic PAT:</strong> Garanta que a permissão <strong>repo</strong> está marcada ao criar o token.</p>
+            </div>
+          </div>
+        );
+      } else {
+        setError(err.message || "Erro desconhecido ao tentar fazer o deploy.");
+      }
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
+  const handleLinkOnly = async () => {
+    if (!token || !project) return;
+    setError(null);
+    try {
+      setIsDeploying(true);
+      const octokit = new Octokit({ auth: token });
+      const { data: user } = await octokit.rest.users.getAuthenticated();
+      const owner = user.login;
+      
+      // Verify repository exists to prevent deploying to a non-existent repo
+      try {
+        await octokit.rest.repos.get({ owner, repo: repoName });
+      } catch (err: any) {
+        if (err.status === 404) {
+          throw new Error(`O repositório "${repoName}" não foi encontrado na sua conta do GitHub. Certifique-se de criá-lo primeiro ou use o botão "Iniciar Deploy (HTML)" para que possamos criá-lo automaticamente.`);
+        }
+        throw err;
+      }
+      
+      // Push static files to the existing repository
+      const url = await pushStaticHtmlToGithub(token, project, repoName, isPrivate);
+      
+      updateProjectInfo({
+        githubUrl: url,
+        githubRepo: repoName,
+        githubUpdatedAt: Date.now(),
+        vercelUrl: vercelUrl.trim() || undefined,
+      });
+      setDeploySuccessUrl(url);
+    } catch (err: any) {
+      console.error(err);
+      if (err.status === 401) {
+        setError("Token inválido ou expirado. Verifique e tente novamente.");
+      } else if (err.status === 403 || (err.message && err.message.toLowerCase().includes("resource not accessible"))) {
+        setError(
+          <div className="space-y-2 text-left">
+            <p className="font-semibold text-red-400">Erro de permissão no Token (403):</p>
+            <p className="text-xs text-red-300">
+              O seu Personal Access Token não tem permissão para gravar neste repositório.
+            </p>
+            <div className="text-xs text-gray-400 space-y-1.5 bg-black/40 p-2.5 rounded border border-white/5 mt-1">
+              <p className="font-medium text-gray-300">Como corrigir no GitHub:</p>
+              <p>• <strong>Fine-grained PAT:</strong> Em <em>Repository Permissions</em>, altere <strong>Contents</strong> para <strong>Read and write</strong>. Em <em>Repository access</em>, selecione <strong>All repositories</strong>.</p>
+              <p>• <strong>Classic PAT:</strong> Garanta que a permissão <strong>repo</strong> está marcada ao criar o token.</p>
+            </div>
+          </div>
+        );
+      } else {
+        setError(err.message || "Erro ao atualizar repositório existente no GitHub.");
       }
     } finally {
       setIsDeploying(false);
@@ -112,14 +192,22 @@ export default function GitHubDeployModal({ onClose }: Props) {
                   <p className="text-sm text-gray-400 mb-6">
                     Seu projeto foi enviado com sucesso para o GitHub em formato estático.
                   </p>
-                  <a
-                    href={deploySuccessUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-[#D4AF37] hover:bg-[#b0912e] text-black font-bold py-2.5 px-6 rounded-lg transition-colors"
-                  >
-                    Abrir Repositório <ExternalLink className="w-4 h-4" />
-                  </a>
+                  <div className="flex flex-col gap-2.5 max-w-xs mx-auto">
+                    <a
+                      href={deploySuccessUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 bg-[#D4AF37] hover:bg-[#b0912e] text-black font-bold py-2.5 px-6 rounded-lg transition-colors w-full"
+                    >
+                      Abrir Repositório <ExternalLink className="w-4 h-4" />
+                    </a>
+                    <button
+                      onClick={() => router.push("/")}
+                      className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-semibold py-2.5 rounded-lg text-sm border border-white/10 transition-colors"
+                    >
+                      Voltar ao Painel
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -149,12 +237,26 @@ export default function GitHubDeployModal({ onClose }: Props) {
                     <p className="text-xs text-gray-500 mt-1">Se não existir, criaremos um novo automaticamente.</p>
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      URL de Produção / Vercel <span className="text-gray-500 text-xs">(Opcional)</span>
+                    </label>
+                    <input
+                      type="url"
+                      value={vercelUrl}
+                      onChange={(e) => setVercelUrl(e.target.value)}
+                      className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-[#D4AF37]"
+                      placeholder="https://linkbiopremium.vercel.app"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Insira a URL de visualização da Vercel para acesso rápido no painel.</p>
+                  </div>
+
                   <div className="flex items-center gap-3 bg-black/30 p-4 rounded-lg border border-white/5">
                     <input
                       type="checkbox"
                       id="isPrivate"
                       checked={isPrivate}
-                      onChange={(e) => setIsPrivate(e.target.value === "true")}
+                      onChange={(e) => setIsPrivate(e.target.checked)}
                       className="w-4 h-4 accent-[#D4AF37]"
                     />
                     <label htmlFor="isPrivate" className="text-sm text-gray-300 cursor-pointer">
@@ -168,21 +270,32 @@ export default function GitHubDeployModal({ onClose }: Props) {
                     </div>
                   )}
 
-                  <button
-                    onClick={handleDeploy}
-                    disabled={isDeploying || !repoName}
-                    className="w-full bg-[#D4AF37] hover:bg-[#b0912e] text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
-                  >
-                    {isDeploying ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" /> Publicando...
-                      </>
-                    ) : (
-                      <>
-                        <GithubIcon className="w-5 h-5" /> Iniciar Deploy (HTML)
-                      </>
-                    )}
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={handleDeploy}
+                      disabled={isDeploying || !repoName}
+                      className="w-full bg-[#D4AF37] hover:bg-[#b0912e] text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                    >
+                      {isDeploying ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" /> Publicando...
+                        </>
+                      ) : (
+                        <>
+                          <GithubIcon className="w-5 h-5" /> Iniciar Deploy (HTML)
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLinkOnly}
+                      disabled={isDeploying || !repoName}
+                      className="w-full bg-white/5 hover:bg-white/10 text-gray-300 font-semibold py-2.5 rounded-lg text-xs border border-white/10 transition-colors"
+                      title="Vincule um repositório que você já publicou no GitHub a este projeto sem fazer o deploy novamente."
+                    >
+                      Vincular Repositório Existente
+                    </button>
+                  </div>
                 </div>
               )}
             </>

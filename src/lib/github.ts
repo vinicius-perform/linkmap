@@ -35,22 +35,34 @@ export async function pushStaticHtmlToGithub(
 
   // 3. Get the default branch ref (usually main, sometimes master)
   const repoData = await octokit.rest.repos.get({ owner, repo: repoName });
-  const defaultBranch = repoData.data.default_branch;
+  const defaultBranch = repoData.data.default_branch || 'main';
   const ref = `heads/${defaultBranch}`;
 
-  const { data: refData } = await octokit.rest.git.getRef({
-    owner,
-    repo: repoName,
-    ref,
-  });
-  const latestCommitSha = refData.object.sha;
+  let latestCommitSha: string | null = null;
+  let baseTreeSha: string | null = null;
 
-  const { data: commitData } = await octokit.rest.git.getCommit({
-    owner,
-    repo: repoName,
-    commit_sha: latestCommitSha,
-  });
-  const baseTreeSha = commitData.tree.sha;
+  try {
+    const { data: refData } = await octokit.rest.git.getRef({
+      owner,
+      repo: repoName,
+      ref,
+    });
+    latestCommitSha = refData.object.sha;
+
+    const { data: commitData } = await octokit.rest.git.getCommit({
+      owner,
+      repo: repoName,
+      commit_sha: latestCommitSha,
+    });
+    baseTreeSha = commitData.tree.sha;
+  } catch (error: any) {
+    // If the repository is empty, it won't have any refs yet.
+    const isRepoEmpty = error.status === 404 || error.status === 409 || 
+      (error.message && error.message.toLowerCase().includes('empty'));
+    if (!isRepoEmpty) {
+      throw error;
+    }
+  }
 
   // 4. Create blobs for our files
   const htmlContent = generateHtmlCode(project);
@@ -85,7 +97,7 @@ export async function pushStaticHtmlToGithub(
   const { data: newTree } = await octokit.rest.git.createTree({
     owner,
     repo: repoName,
-    base_tree: baseTreeSha,
+    base_tree: baseTreeSha || undefined,
     tree: [
       {
         path: 'index.html',
@@ -108,16 +120,25 @@ export async function pushStaticHtmlToGithub(
     repo: repoName,
     message: `Deploy from LinkMap Studio - ${new Date().toLocaleString()}`,
     tree: newTree.sha,
-    parents: [latestCommitSha],
+    parents: latestCommitSha ? [latestCommitSha] : [],
   });
 
-  // 7. Update Ref
-  await octokit.rest.git.updateRef({
-    owner,
-    repo: repoName,
-    ref,
-    sha: newCommit.sha,
-  });
+  // 7. Update or Create Ref
+  if (latestCommitSha) {
+    await octokit.rest.git.updateRef({
+      owner,
+      repo: repoName,
+      ref,
+      sha: newCommit.sha,
+    });
+  } else {
+    await octokit.rest.git.createRef({
+      owner,
+      repo: repoName,
+      ref: `refs/${ref}`,
+      sha: newCommit.sha,
+    });
+  }
 
   // Return the repository URL
   return `https://github.com/${owner}/${repoName}`;

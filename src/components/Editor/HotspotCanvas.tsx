@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Rnd } from "react-rnd";
 import { v4 as uuidv4 } from "uuid";
 import { useEditorStore } from "@/store/editorStore";
@@ -18,6 +18,27 @@ export default function HotspotCanvas() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+
+  // Update size based on current image bounding rect
+  const updateImageSize = () => {
+    if (imageRef.current) {
+      const rect = imageRef.current.getBoundingClientRect();
+      setImageSize({ width: rect.width, height: rect.height });
+    }
+  };
+
+  useEffect(() => {
+    if (imageRef.current && imageRef.current.complete) {
+      updateImageSize();
+    }
+
+    window.addEventListener("resize", updateImageSize);
+    return () => {
+      window.removeEventListener("resize", updateImageSize);
+    };
+  }, [project?.imageBase64]);
 
   // Click on background to create a new hotspot (or deselect)
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -85,6 +106,7 @@ export default function HotspotCanvas() {
           alt="Base do Link"
           className="w-full h-auto block select-none pointer-events-none"
           draggable={false}
+          onLoad={updateImageSize}
         />
 
         {project.hotspots.map((hotspot) => {
@@ -115,31 +137,36 @@ export default function HotspotCanvas() {
             );
           }
 
+          const currentWidth = imageSize.width || imageRef.current?.getBoundingClientRect().width || 1;
+          const currentHeight = imageSize.height || imageRef.current?.getBoundingClientRect().height || 1;
+
           return (
             <Rnd
               key={hotspot.id}
               bounds="parent"
               position={{
-                x: (hotspot.x * (imageRef.current?.width || 0)) / 100,
-                y: (hotspot.y * (imageRef.current?.height || 0)) / 100,
+                x: (hotspot.x * currentWidth) / 100,
+                y: (hotspot.y * currentHeight) / 100,
               }}
               size={{
                 width: `${hotspot.width}%`,
                 height: `${hotspot.height}%`,
               }}
               onDragStop={(e, d) => {
-                if (!imageRef.current) return;
-                const newX = (d.x / imageRef.current.width) * 100;
-                const newY = (d.y / imageRef.current.height) * 100;
+                const width = imageSize.width || imageRef.current?.getBoundingClientRect().width || 1;
+                const height = imageSize.height || imageRef.current?.getBoundingClientRect().height || 1;
+                const newX = (d.x / width) * 100;
+                const newY = (d.y / height) * 100;
                 updateHotspot(hotspot.id, { x: newX, y: newY });
               }}
               onResizeStop={(e, direction, ref, delta, position) => {
-                if (!imageRef.current) return;
+                const width = imageSize.width || imageRef.current?.getBoundingClientRect().width || 1;
+                const height = imageSize.height || imageRef.current?.getBoundingClientRect().height || 1;
                 // convert px to %
-                const newWidth = (parseFloat(ref.style.width) / imageRef.current.width) * 100;
-                const newHeight = (parseFloat(ref.style.height) / imageRef.current.height) * 100;
-                const newX = (position.x / imageRef.current.width) * 100;
-                const newY = (position.y / imageRef.current.height) * 100;
+                const newWidth = (parseFloat(ref.style.width) / width) * 100;
+                const newHeight = (parseFloat(ref.style.height) / height) * 100;
+                const newX = (position.x / width) * 100;
+                const newY = (position.y / height) * 100;
                 
                 updateHotspot(hotspot.id, {
                   width: newWidth,
