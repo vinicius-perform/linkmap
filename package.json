@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
+    "@supabase/supabase-js": "^2.107.0",
     "clsx": "^2.1.1",
     "localforage": "^1.10.0",
     "lucide-react": "^1.17.0",
