@@ -10,35 +10,41 @@ const hotspots = ${jsonStr};
 
 export default function LinkBioPage() {
   return (
-    <div className="relative w-full max-w-[480px] mx-auto min-h-screen bg-black">
+    <div className="min-h-screen w-full bg-black flex justify-center items-start overflow-y-auto">
       {/* 
-        Coloque sua imagem na pasta /public
-        Exemplo: /public/${project.slug}-bg.png 
+        Contêiner relativo que acompanha o tamanho exato da imagem.
+        Garante que as áreas clicáveis nunca mudem de posição.
       */}
-      <img 
-        src="/${project.slug}-bg.png" 
-        alt="Link Bio" 
-        className="w-full h-auto block" 
-      />
-      
-      {hotspots.map((hotspot) => (
-        hotspot.active && (
-          <a
-            key={hotspot.id}
-            href={hotspot.url || '#'}
-            target={hotspot.targetBlank ? "_blank" : "_self"}
-            rel={hotspot.targetBlank ? "noopener noreferrer" : undefined}
-            className="absolute block"
-            style={{
-              left: \`\${hotspot.x}%\`,
-              top: \`\${hotspot.y}%\`,
-              width: \`\${hotspot.width}%\`,
-              height: \`\${hotspot.height}%\`
-            }}
-            aria-label={hotspot.label || hotspot.name}
-          />
-        )
-      ))}
+      <div className="relative w-full max-w-[480px]">
+        {/* 
+          Coloque sua imagem na pasta /public
+          Exemplo: /public/${project.slug}-bg.png 
+        */}
+        <img 
+          src="/${project.slug}-bg.png" 
+          alt="Link Bio" 
+          className="w-full h-auto block" 
+        />
+        
+        {hotspots.map((hotspot) => (
+          hotspot.active && (
+            <a
+              key={hotspot.id}
+              href={hotspot.url || '#'}
+              target={hotspot.targetBlank ? "_blank" : "_self"}
+              rel={hotspot.targetBlank ? "noopener noreferrer" : undefined}
+              className="absolute block hover:bg-white/5 transition-colors"
+              style={{
+                left: \`\${hotspot.x}%\`,
+                top: \`\${hotspot.y}%\`,
+                width: \`\${hotspot.width}%\`,
+                height: \`\${hotspot.height}%\`
+              }}
+              aria-label={hotspot.label || hotspot.name}
+            />
+          )
+        ))}
+      </div>
     </div>
   );
 }
@@ -75,13 +81,18 @@ export const generateHtmlCode = (project: Project) => {
       background-color: #000;
       display: flex;
       justify-content: center;
+      align-items: flex-start;
       min-height: 100vh;
+      overflow-y: auto;
     }
+    /* 
+      Contêiner relativo que acompanha o tamanho exato da imagem.
+      Garante que as áreas clicáveis nunca mudem de posição.
+    */
     .container {
       position: relative;
       width: 100%;
       max-width: 480px;
-      margin: 0 auto;
     }
     .background-img {
       display: block;
@@ -91,8 +102,6 @@ export const generateHtmlCode = (project: Project) => {
     .hotspot {
       position: absolute;
       display: block;
-      /* Remova ou altere o background abaixo para ficar invisível */
-      /* background-color: rgba(255, 255, 255, 0.2); */
     }
   </style>
 </head>

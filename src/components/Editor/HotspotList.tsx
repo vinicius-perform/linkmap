@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useEditorStore } from "@/store/editorStore";
-import { Copy, Trash2, Maximize, Settings2 } from "lucide-react";
+import { Copy, Trash2, Maximize, Settings2, Sparkles, Loader2 } from "lucide-react";
 import clsx from "clsx";
+import { detectButtons } from "@/lib/buttonDetector";
 
 export default function HotspotList() {
   const {
@@ -11,19 +13,78 @@ export default function HotspotList() {
     deleteHotspot,
     duplicateHotspot,
     centerHotspot,
+    updateProjectInfo,
   } = useEditorStore();
 
+  const [isDetecting, setIsDetecting] = useState(false);
+
   if (!project) return null;
+
+  const handleAutoDetect = async () => {
+    if (!project.imageBase64) return;
+    setIsDetecting(true);
+    try {
+      const boxes = await detectButtons(project.imageBase64);
+      if (boxes.length === 0) {
+        alert("Nenhum botão detectado automaticamente. Tente clicar manualmente sobre a imagem para criar áreas clicáveis.");
+        return;
+      }
+
+      if (confirm(`Detectamos ${boxes.length} botão(ões) na imagem. Deseja importá-los como áreas clicáveis adicionais?`)) {
+        const newHotspots = boxes.map((box, i) => ({
+          id: crypto.randomUUID(),
+          name: `Área Auto ${project.hotspots.length + i + 1}`,
+          label: `Botão Inteligente ${project.hotspots.length + i + 1}`,
+          url: "",
+          targetBlank: true,
+          active: true,
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
+        }));
+
+        updateProjectInfo({
+          hotspots: [...project.hotspots, ...newHotspots]
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao ler e analisar imagem base.");
+    } finally {
+      setIsDetecting(false);
+    }
+  };
 
   const selectedHotspot = project.hotspots.find((h) => h.id === selectedHotspotId);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-white/10">
-        <h2 className="text-lg font-bold text-white mb-1">Áreas Clicáveis</h2>
-        <p className="text-xs text-gray-500">
-          {project.hotspots.length} área(s) criadas
-        </p>
+      <div className="p-4 border-b border-white/10 flex items-center justify-between gap-2 bg-black/20">
+        <div>
+          <h2 className="text-sm font-bold text-white mb-0.5">Áreas Clicáveis</h2>
+          <p className="text-[10px] text-gray-500">
+            {project.hotspots.length} área(s) criadas
+          </p>
+        </div>
+        <button
+          onClick={handleAutoDetect}
+          disabled={isDetecting || !project.imageBase64}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold py-1.5 px-2.5 rounded flex items-center gap-1 transition-all disabled:opacity-40"
+          title="Detecta botões automaticamente usando visão computacional"
+        >
+          {isDetecting ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Lendo...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5" />
+              Auto Detectar
+            </>
+          )}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
