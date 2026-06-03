@@ -147,8 +147,13 @@ export default function Dashboard() {
   }, [isClient]);
 
   useEffect(() => {
+    const auth = localStorage.getItem("linkmap_authenticated");
+    if (auth !== "true") {
+      router.push("/login");
+      return;
+    }
     loadProjects();
-  }, []);
+  }, [router]);
 
   const loadProjects = async () => {
     setIsLoading(true);

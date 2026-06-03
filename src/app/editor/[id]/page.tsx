@@ -18,9 +18,14 @@ export default function EditorPage() {
   const { project, setProject, isTestMode, setTestMode } = useEditorStore();
 
   useEffect(() => {
+    const auth = localStorage.getItem("linkmap_authenticated");
+    if (auth !== "true") {
+      router.push("/login");
+      return;
+    }
     loadProject();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+  }, [params.id, router]);
 
   useEffect(() => {
     // Auto-save logic (debounced would be better in prod, but keeping simple here)
